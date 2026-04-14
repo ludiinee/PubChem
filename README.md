@@ -5,7 +5,7 @@ Analyse bioinformatique des données expérimentales issues de PubChem pour troi
 **Auteure :** Ludine  
 **Encadrant :** Dr. TRAN NGUYEN Viet Khoa  
 **Année :** 2026  
-**Version :** 1.0.0
+**Version :** 1.0.4
 
 ---
 
@@ -35,13 +35,13 @@ Les trois fichiers CSV suivants doivent être présents dans le **même dossier*
 | `ABCG2.csv` | Breast Cancer Resistance Protein |
 | `ABCC1.csv` | Multidrug Resistance Protein 1 |
 
-Ces fichiers sont téléchargeables depuis [PubChem BioAssay](https://pubchem.ncbi.nlm.nih.gov/bioassay/).
+Fichiers sont téléchargeables depuis [PubChem BioAssay](https://pubchem.ncbi.nlm.nih.gov/bioassay/).
 
 ---
 
 ## Utilisation
 ```bash
-python analyse2.py
+python analyse4.py
 ```
 
 ---
