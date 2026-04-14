@@ -19,6 +19,7 @@ Les transporteurs ABC (ATP-Binding Cassette) jouent un rôle central dans la ré
 
 - Python 3.8+
 - Les bibliothèques suivantes :
+
 ```bash
 pip install pandas matplotlib requests
 ```
@@ -35,11 +36,12 @@ Les trois fichiers CSV suivants doivent être présents dans le **même dossier*
 | `ABCG2.csv` | Breast Cancer Resistance Protein |
 | `ABCC1.csv` | Multidrug Resistance Protein 1 |
 
-Fichiers sont téléchargeables depuis [PubChem BioAssay](https://pubchem.ncbi.nlm.nih.gov/bioassay/).
+Ces fichiers sont téléchargeables depuis [PubChem BioAssay](https://pubchem.ncbi.nlm.nih.gov/bioassay/).
 
 ---
 
 ## Utilisation
+
 ```bash
 python analyse4.py
 ```
