@@ -19,10 +19,10 @@ Usage:
         - chevauchements.png
 """
 
-__authors__ = "Ludine"
+__authors__ = "Ludine & Sabrine"
 __contact__ = "viet-khoa.tran-nguyen@u-paris.fr"
 __date__ = "2026"
-__version__ = "1.0.0"
+__version__ = "1.0.4"
 
 # Modules internes Python
 import csv
@@ -33,6 +33,7 @@ from io import StringIO
 import matplotlib.pyplot as plt
 import pandas as pd
 import requests
+
 
 # Constante globale : limite de taille des cellules CSV
 # nécessaire car les citations dans PubChem sont très longues
@@ -323,6 +324,8 @@ def etape2b(df, nom):
 # ÉTAPE 3 : SUPPRESSION DES FAUX POSITIFS
 # ============================================================
 
+AIDS_AUTOFLUORESCENT = [587,588, 590, 591, 592, 593, 594]
+
 def get_cids_actifs(aid):
     """Retrieve the set of active CIDs for a given PubChem assay (AID).
 
@@ -411,13 +414,17 @@ def etape3(df, fp_cids, nom):
     pandas.DataFrame
         DataFrame without false positive active molecules.
     """
+    
     n0 = len(df)
 
     # Strip whitespace from CIDs before comparison.
-    df["Compound_CID"] = df["Compound_CID"].str.strip()
+    df["Compound_CID"] = df["Compound_CID"].astype(str).str.strip()
+
 
     masque = (df["Activity"] == "Active") & (df["Compound_CID"].isin(fp_cids))
     df = df[~masque]
+    #Autre manière de garder remet l'index proporement suite aux suppressions
+    #df = df[~masque].reset_index(drop=True)
 
     n1 = len(df)
     print(f"{nom} | Faux positifs supprimés : {n0 - n1} | Restant : {n1}")
@@ -427,6 +434,15 @@ def etape3(df, fp_cids, nom):
 # ============================================================
 # ÉTAPE 4 : EXPORT DES CSV FINAUX
 # ============================================================
+
+FINAL_COLUMNS = [
+	"Substance_SID",
+    "Compound_CID",
+    "Activity",
+    "Activity_Type",
+    "Activity_Qualifier",
+    "Activity_Value"
+]
 
 def etape4(df, nom):
     """Export the final cleaned dataset to a CSV file.
@@ -456,7 +472,6 @@ def etape4(df, nom):
     print(f"  Inactifs : {(df_final['Activity'] == 'Inactive').sum()}")
     print(f"  Unspecified : {(df_final['Activity'] == 'Unspecified').sum()}")
     return df_final
-
 
 # ============================================================
 # ÉTAPE 5 : ANALYSE CROISÉE
@@ -512,6 +527,7 @@ def etape5(df_b1, df_g2, df_c1):
     # Molecules never active for any protein.
     jamais_actifs = tous_cids - actifs_b1 - actifs_g2 - actifs_c1
 
+	
     print(f"Actifs seulement ABCB1          : {len(seulement_b1)}")
     print(f"Actifs seulement ABCG2          : {len(seulement_g2)}")
     print(f"Actifs seulement ABCC1          : {len(seulement_c1)}")
@@ -521,6 +537,14 @@ def etape5(df_b1, df_g2, df_c1):
     print(f"Actifs pour les 3 protéines     : {len(trois)}")
     print(f"Jamais actifs pour aucune       : {len(jamais_actifs)}")
 
+#VERIFIE LA COHERENCE DES RÉSULTATS VOIR si tt égal à tous_cids
+	
+    total_actifs = len(seulement_b1 | seulement_g2 | seulement_c1 | deux_b1_g2 | deux_b1_c1 | deux_g2_c1 | trois)
+    print(f"Total CIDs uniques actifs   : {total_actifs}")
+    print(f"Total CIDs uniques          : {len(tous_cids)}")
+   
+    
+    
     return {
         "seulement_b1": seulement_b1,
         "seulement_g2": seulement_g2,
@@ -639,7 +663,138 @@ def etape6(dfs_finaux, croise):
     print("Figure sauvegardée : chevauchements.png")
     plt.close()
 
+# ============================================================
+# ÉTAPE7  : Bonus - Visualisation /analyse des structures chimiques 2D 
+# ============================================================
+from io import StringIO, BytesIO
+import matplotlib.image as mpimg
 
+def get_images_pubchem(cids):
+    """Retrieve 2D structure images from PubChem for a list of CIDs.
+
+    Parameters
+    ----------
+    cids : list of str
+        List of Compound CIDs.
+
+    Returns
+    -------
+    list of tuple
+        List of (image_array, cid) pairs.
+    """
+    images = []
+    for cid in cids:
+        url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid}/PNG"
+        try:
+            r = requests.get(url, timeout=60)
+            r.raise_for_status()
+            img = mpimg.imread(BytesIO(r.content), format="png")
+            images.append((img, cid))
+        except Exception as e:
+            print(f"  CID {cid} : erreur ({e})")
+    return images
+
+
+def sauvegarder_grille(images, titre, fname, ncols=4):
+    """Save a grid of molecule images to a PNG file.
+
+    Parameters
+    ----------
+    images : list of tuple
+        List of (image_array, label) pairs.
+    titre : str
+        Figure title.
+    fname : str
+        Output filename.
+    ncols : int
+        Number of columns in the grid.
+
+    Returns
+    -------
+    None
+    """
+    nrows = -(-len(images) // ncols)  # ceiling division
+    fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 4, nrows * 4))
+    fig.suptitle(titre, fontsize=14, fontweight="bold")
+    for ax in axes.flat:
+        ax.axis("off")
+    for ax, (img, label) in zip(axes.flat, images):
+        ax.imshow(img)
+        ax.set_title(str(label), fontsize=8)
+    plt.tight_layout()
+    plt.savefig(fname, dpi=150)
+    print(f"  Figure sauvegardée : {fname}")
+    plt.close()
+
+
+def etape7(dfs_finaux, croise):
+    """Bonus: visualisation of 2D chemical structures.
+
+    1. Grid image of the top 12 most potent active molecules
+       per protein, sorted by Activity_Value ascending.
+    2. Grid image of pan-inhibitors (active for all 3 proteins).
+
+    Parameters
+    ----------
+    dfs_finaux : list of pandas.DataFrame
+        List of final DataFrames [ABCB1, ABCG2, ABCC1].
+    croise : dict
+        Dictionary returned by etape5() with overlap sets.
+
+    Returns
+    -------
+    None
+    """
+    proteines = ["ABCB1", "ABCG2", "ABCC1"]
+
+    print("\n" + "=" * 50)
+    print("BONUS : VISUALISATION DES STRUCTURES 2D")
+    print("=" * 50)
+
+    # ── 1. Top 12 actifs par protéine ──────────────────────────
+    print("\n-- Top 12 actifs par protéine --")
+    for nom, df in zip(proteines, dfs_finaux):
+        df_actifs = (
+            df[df["Activity"] == "Active"]
+            .dropna(subset=["Activity_Value"])
+            .sort_values("Activity_Value")
+            .head(12)
+        )
+        cids = df_actifs["Compound_CID"].astype(str).tolist()
+        images = get_images_pubchem(cids)
+
+        if images:
+            legends = []
+            for (img, cid), (_, row) in zip(images, df_actifs.iterrows()):
+                legends.append((img, f"CID {cid} | {row['Activity_Value']:.2f} µM"))
+            sauvegarder_grille(
+                legends,
+                titre=f"Top 12 actifs {nom}",
+                fname=f"top12_actifs_{nom}.png"
+            )
+        else:
+            print(f"  {nom} : aucune image disponible")
+
+    # ── 2. Pan-inhibiteurs ──────────────────────────────────────
+    print("\n-- Pan-inhibiteurs --")
+    cids_pan = [str(c) for c in list(croise["trois"])[:12]]
+    if not cids_pan:
+        print("  Aucun pan-inhibiteur trouvé.")
+        return
+
+    images = get_images_pubchem(cids_pan)
+    if images:
+        sauvegarder_grille(
+            images,
+            titre="Pan-inhibiteurs (actifs pour les 3 protéines)",
+            fname="pan_inhibiteurs.png"
+        )
+    else:
+        print("  Aucune image disponible pour les pan-inhibiteurs.")
+
+
+
+    
 # ============================================================
 # PROGRAMME PRINCIPAL
 # ============================================================
@@ -682,5 +837,8 @@ if __name__ == "__main__":
 
     print("\n=== ÉTAPE 6 : VISUALISATIONS ===")
     etape6([df_abcb1_final, df_abcg2_final, df_abcc1_final], croise)
+    
+    print("\n=== ÉTAPE 7 : BONUS -  VISUALISATION /ANALYSE DES STRUCTURES CHIMIQUES 2D ===")
+    etape7([df_abcb1_final, df_abcg2_final, df_abcc1_final], croise)
 
     print("\n=== ANALYSE TERMINÉE ===")
